@@ -41,10 +41,43 @@ def create_restaurant_flow(moltin: SimpleMoltinApiClient):
             "type": "float",
             "description": "Latitude part of restaurant coordinates",
         },
+        "restaurant_courier": {
+            "type": "integer",
+            "description": "Telegram ID of restaurant courier",
+        },
     }
     for field_name, field_options in restaurant_fields.items():
         new_field_id = moltin.create_flow_field(
             restaurant_flow_id,
+            field_name,
+            field_options["type"],
+            field_options["description"],
+        )
+        print(f"New field created {new_field_id}")
+
+
+def create_customer_address_flow(moltin: SimpleMoltinApiClient):
+    customer_address_flow_id = moltin.create_flow(
+        "Customer Address", "Stores location of customers"
+    )
+    print(f"Created Customer Address flow: {create_restaurant_flow}")
+    customer_address_fields = {
+        "telegram_id": {
+            "type": "integer",
+            "description": "Customer telegram ID",
+        },
+        "lon": {
+            "type": "float",
+            "description": "Longitude part of customer coordinates",
+        },
+        "lat": {
+            "type": "float",
+            "description": "Latitude part of customer coordinates",
+        },
+    }
+    for field_name, field_options in customer_address_fields.items():
+        new_field_id = moltin.create_flow_field(
+            customer_address_flow_id,
             field_name,
             field_options["type"],
             field_options["description"],
@@ -69,10 +102,22 @@ def main():
         type=str,
         help="URL address with JSON catalog register of restaurants to parse",
     )
+    parser.add_argument(
+        "--default-courier-id",
+        type=int,
+        help="Default courier telegram id for testing purposes",
+    )
 
     args = parser.parse_args()
 
     moltin_clinet = SimpleMoltinApiClient(args.id, client_secret=args.secret)
+
+    try:
+        create_customer_address_flow(moltin_clinet)
+    except requests.exceptions.HTTPError:
+        print(
+            "Cannot create Customer Address flow. It either exists or API call has failed."
+        )
 
     try:
         create_restaurant_flow(moltin_clinet)
@@ -88,6 +133,8 @@ def main():
             print(f"New product created: {new_product_id}")
 
     if restaurants_url := args.load_restaurants_url:
+        if not (default_courier_id := args.default_courier_id):
+            raise ValueError("Default courier ID must be provided")
         response = requests.get(restaurants_url)
         response.raise_for_status()
         restaurant_register = response.json()
@@ -98,6 +145,7 @@ def main():
                 restaurant_address=restaurant["address"]["full"],
                 restaurant_lon=float(restaurant["coordinates"]["lon"]),
                 restaurant_lat=float(restaurant["coordinates"]["lat"]),
+                restaurant_courier=default_courier_id,
             )
             print(f"New restaurant created: {new_restaurant_id}")
 
