@@ -4,4 +4,4 @@
 {% for item in cart_items %}
 <b>{{ item.name }}</b> x{{ item.quantity }} - {{item.meta.display_price.with_tax.value.formatted}}
 {% endfor %}
-{% if cart_items %}Общая сумма заказа: <b>{{total_price}}</b>{% endif %}
+{% if cart_items %}Общая сумма заказа: <b>{{total_price}} Р</b>{% endif %}

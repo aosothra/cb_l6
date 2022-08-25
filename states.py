@@ -100,7 +100,7 @@ class MenuState(State):
         inline_keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"Корзина ({total_price})" if cart_items else "Корзина (пусто)",
+                    f"Корзина ({total_price} Р)" if cart_items else "Корзина (пусто)",
                     callback_data="cart",
                 ),
                 InlineKeyboardButton("Оформить заказ", callback_data="order"),
@@ -147,8 +147,6 @@ class PizzaDescriptionState(State):
         image_url = moltin.get_image_url_by_file_id(
             product["relationships"]["main_image"]["data"]["id"]
         )
-
-        self.__product_name = product["name"]
 
         inline_keyboard = [
             [
