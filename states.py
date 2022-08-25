@@ -246,7 +246,6 @@ class DeliveryState(State):
         )
 
     def handle_input(self, update, context, moltin, jinja):
-        print("Recieving input...")
         if not update.message:
             return None
 
@@ -256,10 +255,9 @@ class DeliveryState(State):
 
         if not update.message.text:
             return None
+
         user_input = update.message.text
-        print("Fetching coordinates...")
         coords = fetch_coordinates(os.getenv("YANDEX_GEOCODER_API"), user_input)
-        print("Checking coordinates...")
         if not coords:
             context.bot.send_message(
                 chat_id=self.__chat_id,

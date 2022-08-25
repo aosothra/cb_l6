@@ -15,9 +15,14 @@ from telegram.ext import (
 from moltin_api import SimpleMoltinApiClient
 from state_machine import StateMachine
 from states import MenuState
+from tg_log_handler import TelegramLogHandler
 
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("pizza_bot")
+
+
+def on_error(update, context):
+    logger.exception("An exception occured while handling an event.")
 
 
 def main():
@@ -25,6 +30,10 @@ def main():
     env.read_env()
 
     logging.basicConfig(level=logging.ERROR)
+    logger.setLevel(logging.DEBUG)
+    telegram_handler = TelegramLogHandler(env("ALARM_BOT_TOKEN"), env("ALARM_CHAT_ID"))
+    telegram_handler.setLevel(logging.ERROR)
+    logger.addHandler(telegram_handler)
 
     redis_connection = redis.Redis(
         host=env("REDIS_HOST"),
@@ -56,6 +65,7 @@ def main():
         MessageHandler(Filters.location, state_machine.handle_message)
     )
     dispatcher.add_handler(CommandHandler("start", state_machine.handle_message))
+    dispatcher.add_error_handler(on_error)
     updater.start_polling()
     updater.idle()
 

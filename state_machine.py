@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import pickle
 from typing import Type
@@ -8,6 +9,9 @@ from telegram import Update
 from telegram.ext import CallbackContext
 
 from moltin_api import SimpleMoltinApiClient
+
+
+logger = logging.getLogger("pizza_bot")
 
 
 class State(object):
@@ -77,7 +81,7 @@ class StateMachine:
 
         # Reset state to initial upon /start command regardless of current state
         if update.message and update.message.text == "/start":
-            print("Set initial state for user")
+            logger.debug(f"Set initial state for user id({chat_id})")
             self.users_state[chat_id] = self.__initial_state()
             self.users_state[chat_id].prepare_state(
                 update, context, self.__moltin_client, self.__jinja
@@ -87,8 +91,8 @@ class StateMachine:
         # Try to retrieve user state from persistent redis storage
         if self.users_state.get(chat_id, None) is None and self.__redis.exists(chat_id):
             self.users_state[chat_id] = pickle.loads(self.__redis.get(chat_id))
-            print(
-                f"Loaded {type(self.users_state[chat_id]).__name__} for user {chat_id} from persistent storage"
+            logger.debug(
+                f"Loaded {type(self.users_state[chat_id]).__name__} for user id({chat_id}) from persistent storage"
             )
 
         if not (
@@ -96,7 +100,7 @@ class StateMachine:
                 update, context, self.__moltin_client, self.__jinja
             )
         ):
-            print("No valid input from user")
+            logger.debug("No valid input from user id({chat_id})")
             # User input didn't cause state transition
             return
 
@@ -107,11 +111,11 @@ class StateMachine:
         self.users_state[chat_id].clean_up(update, context)
 
         # Set, prepare and save new state message
-        print(f"Switching user({chat_id}) to {type(new_state).__name__}...", end=" ")
+        logger.debug(f"Switching user({chat_id}) to {type(new_state).__name__}...")
         self.users_state[chat_id] = new_state
         self.users_state[chat_id].prepare_state(
             update, context, self.__moltin_client, self.__jinja
         )
-        print(f"Done! Pickling state and saving in persistent storage...", end=" ")
+        logger.debug(f"Done! Pickling state and saving in persistent storage...")
         self.__redis.set(chat_id, pickle.dumps(self.users_state[chat_id]))
-        print("Done!")
+        logger.debug("Done!")
