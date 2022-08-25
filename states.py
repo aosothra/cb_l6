@@ -37,6 +37,18 @@ def fetch_coordinates(apikey, address):
     return float(lon), float(lat)
 
 
+def remind_customer(context: CallbackContext):
+    job = context.job
+    message_template = job.context["jinja_env"].jinja.get_template(
+        "customer_reminder_message.html"
+    )
+    context.bot.send_message(
+        chat_id=job.context["chat_id"],
+        text=message_template.render(),
+        parse_mode=PARSEMODE_HTML,
+    )
+
+
 class MenuState(State):
     def __init__(self, menu_page=None):
         self.__page = menu_page if menu_page else 0
@@ -491,6 +503,16 @@ class PaymentInquiryState(State):
                     longitude=self.__customer_coords["lon"],
                     latitude=self.__customer_coords["lat"],
                 )
+
+            order_deadline_seconds = 10
+            context.job_queue.run_once(
+                remind_customer,
+                order_deadline_seconds,
+                context={
+                    "chat_id": self.__chat_id,
+                    "jinja_env": jinja,
+                },
+            )
 
             return StateMachine.INITIAL_STATE
 

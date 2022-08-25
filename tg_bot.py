@@ -46,7 +46,11 @@ def main():
     dispatcher.add_handler(PreCheckoutQueryHandler(state_machine.handle_message))
     dispatcher.add_handler(MessageHandler(Filters.text, state_machine.handle_message))
     dispatcher.add_handler(
-        MessageHandler(Filters.successful_payment, state_machine.handle_message)
+        MessageHandler(
+            Filters.successful_payment,
+            state_machine.handle_message,
+            pass_job_queue=True,
+        )
     )
     dispatcher.add_handler(
         MessageHandler(Filters.location, state_machine.handle_message)
