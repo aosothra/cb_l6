@@ -39,7 +39,7 @@ def fetch_coordinates(apikey, address):
 
 def remind_customer(context: CallbackContext):
     job = context.job
-    message_template = job.context["jinja_env"].jinja.get_template(
+    message_template = job.context["jinja_env"].get_template(
         "customer_reminder_message.html"
     )
     context.bot.send_message(
@@ -53,13 +53,7 @@ class MenuState(State):
     def __init__(self, menu_page=None):
         self.__page = menu_page if menu_page else 0
 
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
         products = moltin.get_products()
         cart_items, total_price = moltin.get_cart_and_full_price(self.__chat_id)
@@ -122,13 +116,7 @@ class MenuState(State):
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
         ).message_id
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         if not update.callback_query:
             return None
 
@@ -153,13 +141,7 @@ class PizzaDescriptionState(State):
     def __init__(self, product_id):
         self.__product_id = product_id
 
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
         product = moltin.get_product_by_id(self.__product_id)
         image_url = moltin.get_image_url_by_file_id(
@@ -185,13 +167,7 @@ class PizzaDescriptionState(State):
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
         ).message_id
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         if not update.callback_query:
             return None
 
@@ -212,13 +188,7 @@ class PizzaDescriptionState(State):
 
 
 class CartState(State):
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
         cart_items, total_price = moltin.get_cart_and_full_price(self.__chat_id)
         inline_keyboard = [
@@ -244,13 +214,7 @@ class CartState(State):
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
         ).message_id
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         if not update.callback_query:
             return None
         user_input = update.callback_query.data
@@ -270,13 +234,7 @@ class CartState(State):
 
 
 class DeliveryState(State):
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
 
         message_template = jinja.get_template("arrange_delivery_message.html")
@@ -287,13 +245,7 @@ class DeliveryState(State):
             parse_mode=PARSEMODE_HTML,
         )
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         print("Recieving input...")
         if not update.message:
             return None
@@ -329,13 +281,7 @@ class ConfirmAddressState(State):
             (restaurant["restaurant-lon"], restaurant["restaurant-lat"]),
         )
 
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
         restaurants = moltin.get_flow_entries(flow_slug="restaurant")
         self.__closest_restaurant = min(
@@ -376,13 +322,7 @@ class ConfirmAddressState(State):
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
         ).message_id
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         if not update.callback_query:
             return None
 
@@ -414,13 +354,7 @@ class PaymentInquiryState(State):
         self.__delivery_price = delivery_price
         self.__customer_coords = customer_coords
 
-    def prepare_state(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def prepare_state(self, update, context, moltin, jinja):
         self.__chat_id = update.effective_chat.id
         cart_items, total_price = moltin.get_cart_and_full_price(self.__chat_id)
         total_price = int(total_price) + self.__delivery_price
@@ -464,19 +398,8 @@ class PaymentInquiryState(State):
             prices,
         ).message_id
 
-    def handle_input(
-        self,
-        update: Update,
-        context: CallbackContext,
-        moltin: SimpleMoltinApiClient,
-        jinja: Environment,
-    ):
+    def handle_input(self, update, context, moltin, jinja):
         if update.message and update.message.successful_payment:
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Платеж прошел, спасибо!",
-            )
-
             if self.__customer_coords:
                 # Save customer address data and notify courier
 
@@ -504,15 +427,21 @@ class PaymentInquiryState(State):
                     latitude=self.__customer_coords["lat"],
                 )
 
-            order_deadline_seconds = 10
-            context.job_queue.run_once(
-                remind_customer,
-                order_deadline_seconds,
-                context={
-                    "chat_id": self.__chat_id,
-                    "jinja_env": jinja,
-                },
+                order_deadline_seconds = 3600
+                context.job_queue.run_once(
+                    remind_customer,
+                    order_deadline_seconds,
+                    context={
+                        "chat_id": self.__chat_id,
+                        "jinja_env": jinja,
+                    },
+                )
+
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Платеж прошел, спасибо!",
             )
+            moltin.flush_cart(self.__chat_id)
 
             return StateMachine.INITIAL_STATE
 
