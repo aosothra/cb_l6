@@ -2,7 +2,7 @@ import os
 import requests
 from geopy import distance
 from jinja2 import Environment
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.constants import PARSEMODE_HTML
 from telegram.ext import CallbackContext
 
@@ -282,18 +282,20 @@ class DeliveryState(State):
         moltin: SimpleMoltinApiClient,
         jinja: Environment,
     ):
+        print("Recieving input...")
         if not update.message:
             return None
 
         if update.message.location:
             user_input = update.message.location
             return ConfirmAddressState(user_input.longitude, user_input.latitude)
+
         if not update.message.text:
             return None
-
         user_input = update.message.text
+        print("Fetching coordinates...")
         coords = fetch_coordinates(os.getenv("YANDEX_GEOCODER_API"), user_input)
-
+        print("Checking coordinates...")
         if not coords:
             context.bot.send_message(
                 chat_id=self.__chat_id,
@@ -324,8 +326,10 @@ class ConfirmAddressState(State):
     ):
         self.__chat_id = update.effective_chat.id
         restaurants = moltin.get_flow_entries(flow_slug="restaurant")
-        closest_restaurant = min(restaurants, key=self.__get_distance_to_restaurant)
-        distance = self.__get_distance_to_restaurant(closest_restaurant).km
+        self.__closest_restaurant = min(
+            restaurants, key=self.__get_distance_to_restaurant
+        )
+        distance = self.__get_distance_to_restaurant(self.__closest_restaurant).km
         self.__delivery_price = 0 if distance <= 0.5 else 100 if distance <= 5 else 300
 
         delivery_options_row = [
@@ -353,7 +357,8 @@ class ConfirmAddressState(State):
         self.__message_id = context.bot.send_message(
             chat_id=self.__chat_id,
             text=message_template.render(
-                address=closest_restaurant["restaurant-address"], distance=distance
+                address=self.__closest_restaurant["restaurant-address"],
+                distance=distance,
             ),
             parse_mode=PARSEMODE_HTML,
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
@@ -371,6 +376,15 @@ class ConfirmAddressState(State):
 
         update.callback_query.answer()
         user_input = update.callback_query.data
+        if user_input == "pick_up":
+            return PaymentInquiryState(self.__closest_restaurant)
+        if user_input == "request_delivery":
+            customer_coords = {"lon": self.__lon, "lat": self.__lat}
+            return PaymentInquiryState(
+                self.__closest_restaurant,
+                delivery_price=self.__delivery_price,
+                customer_coords=customer_coords,
+            )
         if user_input == "menu":
             return StateMachine.INITIAL_STATE
         if user_input == "change_address":
@@ -380,3 +394,96 @@ class ConfirmAddressState(State):
         context.bot.edit_message_reply_markup(
             chat_id=self.__chat_id, message_id=self.__message_id
         )
+
+
+class PaymentInquiryState(State):
+    def __init__(self, serving_restaurant, delivery_price=0, customer_coords=None):
+        self.__restaurant = serving_restaurant
+        self.__delivery_price = delivery_price
+        self.__customer_coords = customer_coords
+
+    def prepare_state(
+        self,
+        update: Update,
+        context: CallbackContext,
+        moltin: SimpleMoltinApiClient,
+        jinja: Environment,
+    ):
+        self.__chat_id = update.effective_chat.id
+        cart_items, total_price = moltin.get_cart_and_full_price(self.__chat_id)
+        total_price = int(total_price) + self.__delivery_price
+
+        message_template = jinja.get_template("payment_message.html")
+
+        self.__message_id = context.bot.send_message(
+            chat_id=self.__chat_id,
+            text=message_template.render(
+                cart_items=cart_items,
+                total_price=total_price,
+                delivery_ordered=(self.__customer_coords is not None),
+                restaurant_address=self.__restaurant["restaurant-address"],
+                delivery_price=self.__delivery_price,
+            ),
+            parse_mode=PARSEMODE_HTML,
+        ).message_id
+
+        title = "Заказ Пиццы"
+        description = "Описание заказа в сообщении выше"
+        payload = "Custom-Payload"
+        provider_token = os.getenv("TELEGRAM_PAYMENT_TOKEN")
+        currency = "rub"
+        prices = [
+            LabeledPrice(
+                item["name"],
+                int(item["meta"]["display_price"]["with_tax"]["value"]["amount"]) * 100,
+            )
+            for item in cart_items
+        ]
+        if self.__delivery_price:
+            prices.append(LabeledPrice("Доставка", self.__delivery_price * 100))
+
+        self.__invoice_id = context.bot.send_invoice(
+            self.__chat_id,
+            title,
+            description,
+            payload,
+            provider_token,
+            currency,
+            prices,
+        ).message_id
+
+    def handle_input(
+        self,
+        update: Update,
+        context: CallbackContext,
+        moltin: SimpleMoltinApiClient,
+        jinja: Environment,
+    ):
+        if update.message and update.message.successful_payment:
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Платеж прошел, спасибо!",
+            )
+
+            return StateMachine.INITIAL_STATE
+
+        if not (query := update.pre_checkout_query):
+            return None
+
+        if query.invoice_payload != "Custom-Payload":
+            query.answer(ok=False, error_message="Что-то пошло не так...")
+            context.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Похоже возникла проблема при оплате. Вы можете попробовать еще раз.",
+            )
+            return StateMachine.INITIAL_STATE
+
+        query.answer(ok=True)
+        context.bot.send_message(
+            chat_id=query.from_user.id, text="Обрабатываем Ваш платеж..."
+        )
+
+        return None
+
+    def clean_up(self, update: Update, context: CallbackContext):
+        context.bot.delete_message(chat_id=self.__chat_id, message_id=self.__invoice_id)

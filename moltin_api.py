@@ -241,7 +241,7 @@ class SimpleMoltinApiClient:
 
         return (
             items_info["data"],
-            items_info["meta"]["display_price"]["with_tax"]["formatted"],
+            items_info["meta"]["display_price"]["with_tax"]["amount"],
         )
 
     def add_product_to_cart(self, cart_id, product_id, quantity, currency=None):

@@ -107,9 +107,11 @@ class StateMachine:
         self.users_state[chat_id].clean_up(update, context)
 
         # Set, prepare and save new state message
-        print(f"Switching {chat_id} to {type(new_state).__name__}")
+        print(f"Switching user({chat_id}) to {type(new_state).__name__}...", end=" ")
         self.users_state[chat_id] = new_state
         self.users_state[chat_id].prepare_state(
             update, context, self.__moltin_client, self.__jinja
         )
+        print(f"Done! Pickling state and saving in persistent storage...", end=" ")
         self.__redis.set(chat_id, pickle.dumps(self.users_state[chat_id]))
+        print("Done!")
