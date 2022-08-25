@@ -1,0 +1,9 @@
+<b>Ododo - Доставка Пиццы</b>
+
+Новый заказ на доставку:
+{% for item in cart_items %}
+<b>{{ item.name }}</b> x{{ item.quantity }}
+{% endfor %}
+Доставка из ресторана по адресу <b>{{ restaurant_address }}</b>
+
+Точка доставки на карте:

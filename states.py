@@ -34,7 +34,7 @@ def fetch_coordinates(apikey, address):
 
     most_relevant = found_places[0]
     lon, lat = most_relevant["GeoObject"]["Point"]["pos"].split(" ")
-    return lon, lat
+    return float(lon), float(lat)
 
 
 class MenuState(State):
@@ -464,6 +464,33 @@ class PaymentInquiryState(State):
                 chat_id=update.effective_chat.id,
                 text="Платеж прошел, спасибо!",
             )
+
+            if self.__customer_coords:
+                # Save customer address data and notify courier
+
+                moltin.create_flow_entry(
+                    "customer-address",
+                    telegram_id=self.__chat_id,
+                    lon=self.__customer_coords["lon"],
+                    lat=self.__customer_coords["lat"],
+                )
+                cart_items, _ = moltin.get_cart_and_full_price(self.__chat_id)
+                message_template = jinja.get_template(
+                    "courier_notification_message.html"
+                )
+                context.bot.send_message(
+                    chat_id=self.__chat_id,
+                    text=message_template.render(
+                        cart_items=cart_items,
+                        restaurant_address=self.__restaurant["restaurant-address"],
+                    ),
+                    parse_mode=PARSEMODE_HTML,
+                )
+                context.bot.send_location(
+                    chat_id=self.__restaurant["restaurant-courier"],
+                    longitude=self.__customer_coords["lon"],
+                    latitude=self.__customer_coords["lat"],
+                )
 
             return StateMachine.INITIAL_STATE
 
