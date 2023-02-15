@@ -53,4 +53,4 @@ py tg_bot.py
 
 ## Project goals
 
-This project was created for educational purposes as part of [dvmn.org](https://dvmn.org/) Backend Developer course.
+This project was created as code showcase.
